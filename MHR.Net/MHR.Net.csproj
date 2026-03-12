@@ -1,0 +1,34 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <RootNamespace>MHR.Net</RootNamespace>
+
+    <!-- NuGet Package Metadata -->
+    <PackageId>MHR.Net</PackageId>
+    <Version>1.0.0</Version>
+    <Authors>mpathy</Authors>
+    <Description>C# port of Meta's MHR (Meta Human Rig) parametric body model for AI-based 3D body mesh generation. Provides 45 identity parameters for body shape, 204 pose parameters for articulation, and 72 expression parameters for facial animation.</Description>
+    <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/facebookresearch/MHR</PackageProjectUrl>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageTags>mhr;3d;mesh;body;avatar;human;torchsharp;ai;machine-learning;meta;parametric</PackageTags>
+    <RepositoryType>git</RepositoryType>
+    <Copyright>Copyright (c) 2025</Copyright>
+    <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- TorchSharp with CUDA support for GPU acceleration -->
+    <PackageReference Include="TorchSharp-cuda-windows" Version="0.103.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Include README in the NuGet package -->
+    <None Include="README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+</Project>
