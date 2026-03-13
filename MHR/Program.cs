@@ -33,11 +33,11 @@ class Program
     static MhrModel? _mhrModel;
     static MhrVertex[]? _currentMhrVertices;
 
-    // Parameter counts
-    const int IdentityParamCount = 45;    // 20 body + 20 head + 5 hands
-    const int PoseParamCount = 204;        // Joint rotations, position, scale
-    const int ExpressionParamCount = 72;   // Facial expressions
-    const int TotalParamCount = IdentityParamCount + PoseParamCount + ExpressionParamCount;
+    // Parameter counts (from central registry)
+    const int IdentityParamCount = MhrParameters.IdentityCount;
+    const int PoseParamCount = MhrParameters.PoseCount;
+    const int ExpressionParamCount = MhrParameters.ExpressionCount;
+    const int TotalParamCount = MhrParameters.TotalCount;
 
     // Parameter arrays
     static float[] _identityParams = new float[IdentityParamCount];
@@ -116,172 +116,31 @@ class Program
 
         _paramPanel = new ParameterPanelManager(form, 5, 5, 200, form.ClientSize.Height - 50, TotalParamCount);
 
-        // --- Identity Tab (45 params: 0-44) ---
-        _paramPanel.AddTab("Identity");
+        // Build UI from central parameter registry
+        string? currentTab = null;
+        ParameterGroup? firstGroupPerTab = null;
 
-        var bodyGroup = _paramPanel.AddGroup("Identity", "Body Shape (20)");
-        // Body shape PCA components - names based on typical body model semantics
-        string[] bodyNames = {
-            "Height", "Mass", "Shoulders", "Hips", "Chest",
-            "Waist", "Arms Length", "Legs Length", "Torso", "Muscle",
-            "Body Fat", "Limb Thick", "Neck", "Back Width", "Posture",
-            "Ribcage", "Pelvis", "Proportion", "Build", "Frame"
-        };
-        for (int i = 0; i < 20; i++)
-            bodyGroup.AddSlider(bodyNames[i], i);
+        foreach (var (category, groupName, names, startIndex) in MhrParameters.Groups)
+        {
+            // Add tab when category changes
+            if (category != currentTab)
+            {
+                if (firstGroupPerTab != null) firstGroupPerTab.Expand();
+                currentTab = category;
+                firstGroupPerTab = null;
+                _paramPanel.AddTab(category);
+            }
 
-        var headGroup = _paramPanel.AddGroup("Identity", "Head Shape (20)");
-        string[] headNames = {
-            "Head Size", "Face Length", "Face Width", "Jaw Width", "Forehead",
-            "Cheekbones", "Chin", "Nose Size", "Nose Bridge", "Nose Width",
-            "Eye Distance", "Eye Size", "Brow Ridge", "Ears", "Skull Shape",
-            "Temple", "Face Depth", "Mouth Width", "Lip Size", "Neck Thick"
-        };
-        for (int i = 0; i < 20; i++)
-            headGroup.AddSlider(headNames[i], 20 + i);
+            var group = _paramPanel.AddGroup(category, groupName);
+            firstGroupPerTab ??= group;
 
-        var handsGroup = _paramPanel.AddGroup("Identity", "Hands (5)");
-        string[] handNames = { "Hand Size", "Palm Width", "Finger Length", "Finger Thick", "Knuckles" };
-        for (int i = 0; i < 5; i++)
-            handsGroup.AddSlider(handNames[i], 40 + i);
-
-        // Expand first group by default
-        bodyGroup.Expand();
-
-        // --- Expression Tab (72 params: 45+204 = 249 to 320) ---
-        // Note: Expression params start at index 249 in the combined array
-        const int exprOffset = IdentityParamCount + PoseParamCount;
-        _paramPanel.AddTab("Expression");
-
-        var eyesGroup = _paramPanel.AddGroup("Expression", "Eyes (12)");
-        string[] eyeNames = {
-            "Blink L", "Blink R", "Squint L", "Squint R", "Wide L", "Wide R",
-            "Look Up", "Look Down", "Look Left", "Look Right", "Pupil L", "Pupil R"
-        };
-        for (int i = 0; i < 12; i++)
-            eyesGroup.AddSlider(eyeNames[i], exprOffset + i);
-
-        var browsGroup = _paramPanel.AddGroup("Expression", "Eyebrows (8)");
-        string[] browNames = {
-            "Brow Up L", "Brow Up R", "Brow Down L", "Brow Down R",
-            "Brow In L", "Brow In R", "Brow Out L", "Brow Out R"
-        };
-        for (int i = 0; i < 8; i++)
-            browsGroup.AddSlider(browNames[i], exprOffset + 12 + i);
-
-        var mouthGroup = _paramPanel.AddGroup("Expression", "Mouth (24)");
-        string[] mouthNames = {
-            "Smile L", "Smile R", "Frown L", "Frown R", "Mouth Open", "Mouth Close",
-            "Lips Pucker", "Lips Funnel", "Lips Tight", "Lips Press", "Upper Lip Up", "Lower Lip Down",
-            "Mouth Left", "Mouth Right", "Mouth Stretch", "Mouth Roll", "Teeth Show", "Tongue Out",
-            "Lip Bite", "Lip Suck", "Dimple L", "Dimple R", "Sneer L", "Sneer R"
-        };
-        for (int i = 0; i < 24; i++)
-            mouthGroup.AddSlider(mouthNames[i], exprOffset + 20 + i);
-
-        var jawGroup = _paramPanel.AddGroup("Expression", "Jaw (8)");
-        string[] jawNames = {
-            "Jaw Open", "Jaw Forward", "Jaw Back", "Jaw Left",
-            "Jaw Right", "Jaw Clench", "Chin Up", "Chin Down"
-        };
-        for (int i = 0; i < 8; i++)
-            jawGroup.AddSlider(jawNames[i], exprOffset + 44 + i);
-
-        var cheeksGroup = _paramPanel.AddGroup("Expression", "Cheeks/Nose (20)");
-        string[] cheekNames = {
-            "Cheek Puff L", "Cheek Puff R", "Cheek Suck L", "Cheek Suck R",
-            "Nose Wrinkle", "Nose Sneer L", "Nose Sneer R", "Nose Flare L", "Nose Flare R", "Nostril Dilate",
-            "Cheek Raise L", "Cheek Raise R", "Face Tense", "Face Relax", "Puff Exhale",
-            "Gulp", "Swallow", "Throat", "Adam Apple", "Neck Tense"
-        };
-        for (int i = 0; i < 20; i++)
-            cheeksGroup.AddSlider(cheekNames[i], exprOffset + 52 + i);
-
-        // Expand first group by default
-        eyesGroup.Expand();
-
-        // --- Pose Tab (204 params: 45-248) ---
-        // Note: Pose params start at index 45 in the combined array
-        // Pose params are joint rotations - exact mapping depends on MHR skeleton
-        const int poseOffset = IdentityParamCount;
-        _paramPanel.AddTab("Pose");
-
-        var spineGroup = _paramPanel.AddGroup("Pose", "Spine & Torso (30)");
-        string[] spineNames = {
-            "Pelvis Tilt", "Pelvis Roll", "Pelvis Twist", "Pelvis X", "Pelvis Y", "Pelvis Z",
-            "Spine1 Bend", "Spine1 Side", "Spine1 Twist", "Spine2 Bend", "Spine2 Side", "Spine2 Twist",
-            "Spine3 Bend", "Spine3 Side", "Spine3 Twist", "Chest Bend", "Chest Side", "Chest Twist",
-            "Torso X", "Torso Y", "Torso Z", "Torso Rot X", "Torso Rot Y", "Torso Rot Z",
-            "Hip Thrust", "Belly", "Back Arch", "Shoulder Shrug", "Rib Expand", "Core Twist"
-        };
-        for (int i = 0; i < 30; i++)
-            spineGroup.AddSlider(spineNames[i], poseOffset + i);
-
-        var neckGroup = _paramPanel.AddGroup("Pose", "Head & Neck (20)");
-        string[] neckNames = {
-            "Neck Bend", "Neck Side", "Neck Twist", "Head Nod", "Head Tilt", "Head Turn",
-            "Head X", "Head Y", "Head Z", "Jaw Pose", "Eye L X", "Eye L Y",
-            "Eye R X", "Eye R Y", "Neck Base", "Neck Mid", "Head Roll", "Skull",
-            "Face Pose 1", "Face Pose 2"
-        };
-        for (int i = 0; i < 20; i++)
-            neckGroup.AddSlider(neckNames[i], poseOffset + 30 + i);
-
-        var leftArmGroup = _paramPanel.AddGroup("Pose", "Left Arm (30)");
-        string[] leftArmNames = {
-            "L Clav Fwd", "L Clav Up", "L Clav Twist", "L Shoulder Fwd", "L Shoulder Out", "L Shoulder Twist",
-            "L Elbow Bend", "L Elbow Twist", "L Wrist Bend", "L Wrist Side", "L Wrist Twist", "L Arm X",
-            "L Arm Y", "L Arm Z", "L Upper Rot", "L Forearm Rot", "L Hand Rot", "L Shoulder Roll",
-            "L Bicep", "L Tricep", "L Forearm 1", "L Forearm 2", "L Elbow Pose", "L Wrist Pose",
-            "L Arm IK 1", "L Arm IK 2", "L Arm IK 3", "L Arm IK 4", "L Arm IK 5", "L Arm IK 6"
-        };
-        for (int i = 0; i < 30; i++)
-            leftArmGroup.AddSlider(leftArmNames[i], poseOffset + 50 + i);
-
-        var rightArmGroup = _paramPanel.AddGroup("Pose", "Right Arm (30)");
-        string[] rightArmNames = {
-            "R Clav Fwd", "R Clav Up", "R Clav Twist", "R Shoulder Fwd", "R Shoulder Out", "R Shoulder Twist",
-            "R Elbow Bend", "R Elbow Twist", "R Wrist Bend", "R Wrist Side", "R Wrist Twist", "R Arm X",
-            "R Arm Y", "R Arm Z", "R Upper Rot", "R Forearm Rot", "R Hand Rot", "R Shoulder Roll",
-            "R Bicep", "R Tricep", "R Forearm 1", "R Forearm 2", "R Elbow Pose", "R Wrist Pose",
-            "R Arm IK 1", "R Arm IK 2", "R Arm IK 3", "R Arm IK 4", "R Arm IK 5", "R Arm IK 6"
-        };
-        for (int i = 0; i < 30; i++)
-            rightArmGroup.AddSlider(rightArmNames[i], poseOffset + 80 + i);
-
-        var leftLegGroup = _paramPanel.AddGroup("Pose", "Left Leg (30)");
-        string[] leftLegNames = {
-            "L Hip Fwd", "L Hip Out", "L Hip Twist", "L Knee Bend", "L Knee Twist", "L Ankle Bend",
-            "L Ankle Side", "L Ankle Twist", "L Toe Bend", "L Toe Twist", "L Leg X", "L Leg Y",
-            "L Leg Z", "L Thigh Rot", "L Calf Rot", "L Foot Rot", "L Hip Roll", "L Glute",
-            "L Quad", "L Hamstring", "L Calf 1", "L Calf 2", "L Knee Pose", "L Ankle Pose",
-            "L Leg IK 1", "L Leg IK 2", "L Leg IK 3", "L Leg IK 4", "L Leg IK 5", "L Leg IK 6"
-        };
-        for (int i = 0; i < 30; i++)
-            leftLegGroup.AddSlider(leftLegNames[i], poseOffset + 110 + i);
-
-        var rightLegGroup = _paramPanel.AddGroup("Pose", "Right Leg (30)");
-        string[] rightLegNames = {
-            "R Hip Fwd", "R Hip Out", "R Hip Twist", "R Knee Bend", "R Knee Twist", "R Ankle Bend",
-            "R Ankle Side", "R Ankle Twist", "R Toe Bend", "R Toe Twist", "R Leg X", "R Leg Y",
-            "R Leg Z", "R Thigh Rot", "R Calf Rot", "R Foot Rot", "R Hip Roll", "R Glute",
-            "R Quad", "R Hamstring", "R Calf 1", "R Calf 2", "R Knee Pose", "R Ankle Pose",
-            "R Leg IK 1", "R Leg IK 2", "R Leg IK 3", "R Leg IK 4", "R Leg IK 5", "R Leg IK 6"
-        };
-        for (int i = 0; i < 30; i++)
-            rightLegGroup.AddSlider(rightLegNames[i], poseOffset + 140 + i);
-
-        var handsDetailGroup = _paramPanel.AddGroup("Pose", "Hands Detail (34)");
-        string[] fingerNames = {
-            "L Thumb 1", "L Thumb 2", "L Thumb 3", "L Index 1", "L Index 2", "L Index 3",
-            "L Middle 1", "L Middle 2", "L Middle 3", "L Ring 1", "L Ring 2", "L Ring 3",
-            "L Pinky 1", "L Pinky 2", "L Pinky 3", "L Palm", "L Finger Splay",
-            "R Thumb 1", "R Thumb 2", "R Thumb 3", "R Index 1", "R Index 2", "R Index 3",
-            "R Middle 1", "R Middle 2", "R Middle 3", "R Ring 1", "R Ring 2", "R Ring 3",
-            "R Pinky 1", "R Pinky 2", "R Pinky 3", "R Palm", "R Finger Splay"
-        };
-        for (int i = 0; i < 34; i++)
-            handsDetailGroup.AddSlider(fingerNames[i], poseOffset + 170 + i);
+            for (int i = 0; i < names.Length; i++)
+            {
+                var p = MhrParameters.All[startIndex + i];
+                group.AddSlider(names[i], startIndex + i, rangeMin: p.RangeMin, rangeMax: p.RangeMax);
+            }
+        }
+        firstGroupPerTab?.Expand();
 
         // Wire up parameter changes
         _paramPanel.ParametersChanged += () =>
@@ -438,22 +297,23 @@ class Program
 
         var allValues = _paramPanel.GetAllValues();
 
-        // Copy identity params (0-44) with scaling
+        // Scale slider value (0..1) to parameter range (RangeMin..RangeMax) using MhrParameters
         for (int i = 0; i < IdentityParamCount; i++)
         {
-            _identityParams[i] = (allValues[i] - 0.5f) * 4f;  // Scale to roughly -2 to +2
+            var p = MhrParameters.All[i];
+            _identityParams[i] = p.RangeMin + allValues[i] * (p.RangeMax - p.RangeMin);
         }
 
-        // Copy pose params (45-248) with scaling
         for (int i = 0; i < PoseParamCount; i++)
         {
-            _poseParams[i] = (allValues[IdentityParamCount + i] - 0.5f) * 2f;  // Scale to -1 to +1
+            var p = MhrParameters.All[IdentityParamCount + i];
+            _poseParams[i] = p.RangeMin + allValues[IdentityParamCount + i] * (p.RangeMax - p.RangeMin);
         }
 
-        // Copy expression params (249-320) with scaling
         for (int i = 0; i < ExpressionParamCount; i++)
         {
-            _expressionParams[i] = (allValues[IdentityParamCount + PoseParamCount + i] - 0.5f) * 2f;  // Scale to -1 to +1
+            var p = MhrParameters.All[IdentityParamCount + PoseParamCount + i];
+            _expressionParams[i] = p.RangeMin + allValues[IdentityParamCount + PoseParamCount + i] * (p.RangeMax - p.RangeMin);
         }
     }
 
