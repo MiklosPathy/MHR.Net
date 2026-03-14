@@ -1,6 +1,6 @@
 # MHR.Net
 
-A C# port of Meta's [MHR (Meta Human Rig)](https://github.com/facebookresearch/MHR) parametric body model for AI-based 3D human mesh generation.
+A C# port of Meta's [MHR (Momentum Human Rig)](https://github.com/facebookresearch/MHR) parametric body model for AI-based 3D human mesh generation.
 
 ## Overview
 
