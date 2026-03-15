@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "MHR.Identify": {
+      "commandName": "Project",
+      "commandLineArgs": "..\\..\\..\\..\\MHR.Sweep\\bin\\Debug\\net10.0-windows\\sweep_output"
+    }
+  }
+}
