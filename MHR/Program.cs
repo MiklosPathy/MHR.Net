@@ -297,24 +297,15 @@ class Program
 
         var allValues = _paramPanel.GetAllValues();
 
-        // Scale slider value (0..1) to parameter range (RangeMin..RangeMax) using MhrParameters
+        // Slider values are now direct parameter values (fixed-point /100)
         for (int i = 0; i < IdentityParamCount; i++)
-        {
-            var p = MhrParameters.All[i];
-            _identityParams[i] = p.RangeMin + allValues[i] * (p.RangeMax - p.RangeMin);
-        }
+            _identityParams[i] = allValues[i];
 
         for (int i = 0; i < PoseParamCount; i++)
-        {
-            var p = MhrParameters.All[IdentityParamCount + i];
-            _poseParams[i] = p.RangeMin + allValues[IdentityParamCount + i] * (p.RangeMax - p.RangeMin);
-        }
+            _poseParams[i] = allValues[IdentityParamCount + i];
 
         for (int i = 0; i < ExpressionParamCount; i++)
-        {
-            var p = MhrParameters.All[IdentityParamCount + PoseParamCount + i];
-            _expressionParams[i] = p.RangeMin + allValues[IdentityParamCount + PoseParamCount + i] * (p.RangeMax - p.RangeMin);
-        }
+            _expressionParams[i] = allValues[IdentityParamCount + PoseParamCount + i];
     }
 
     static void GenerateBody()
@@ -326,10 +317,10 @@ class Program
             // Create parameter tensors
             var identityTensor = torch.tensor(_identityParams, dtype: torch.ScalarType.Float32);
             var expressionTensor = torch.tensor(_expressionParams, dtype: torch.ScalarType.Float32);
-            var modelParams = torch.tensor(_poseParams, dtype: torch.ScalarType.Float32).unsqueeze(0);
+            var poseTensor = torch.tensor(_poseParams, dtype: torch.ScalarType.Float32);
 
             // Run inference
-            var output = _mhrModel.Forward(identityTensor, modelParams.squeeze(0), expressionTensor);
+            var output = _mhrModel.Forward(identityTensor, poseTensor, expressionTensor);
 
             // Convert to vertex array
             _currentMhrVertices = _mhrModel.ToVertexArray(output);
