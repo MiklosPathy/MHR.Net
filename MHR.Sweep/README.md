@@ -34,3 +34,6 @@ The heatmap uses a black -> red -> yellow -> white color scale, computed using p
 ## Usage
 
 The output is consumed by **MHR.Identify** for automated parameter name validation.
+
+---
+Generated with [Claude Code](https://claude.ai/claude-code) (Anthropic)

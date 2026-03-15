@@ -27,3 +27,6 @@ MHR.Range  -->  MhrParameters.cs (ranges)
                       v
               MHR.Identify (name validation)
 ```
+
+---
+Generated with [Claude Code](https://claude.ai/claude-code) (Anthropic)

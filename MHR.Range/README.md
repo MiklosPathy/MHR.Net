@@ -27,3 +27,6 @@ Determines safe parameter ranges for each of the 321 MHR model parameters by det
 - `param_ranges.csv` - Same data in CSV format
 
 These results are used to update the `MhrParameters.cs` range values in `MHR.Net`.
+
+---
+Generated with [Claude Code](https://claude.ai/claude-code) (Anthropic)

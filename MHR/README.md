@@ -33,3 +33,6 @@ actualValue = RangeMin + sliderValue * (RangeMax - RangeMin)
 ```
 
 Ranges are defined per-parameter in `MhrParameters.All` and are asymmetric (e.g. `-1.29 .. 1.23` for Spine1 Bend).
+
+---
+Generated with [Claude Code](https://claude.ai/claude-code) (Anthropic)
