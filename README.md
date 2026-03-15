@@ -1,6 +1,6 @@
 # MHR.Net Solution
 
-C# port of Meta's MHR (Meta Human Rig) parametric 3D human body model with 321 parameters (45 identity, 204 pose, 72 expression). Uses TorchSharp for inference and DirectX 12 for real-time rendering.
+C# port of Meta's MHR (Momentum Human Rig) parametric 3D human body model with 321 parameters (45 identity, 204 pose, 72 expression). Uses TorchSharp for inference and DirectX 12 for real-time rendering.
 
 This solution provides tools for interactive exploration, parameter range analysis, visual sweeps, and automated parameter name validation using vision models.
 

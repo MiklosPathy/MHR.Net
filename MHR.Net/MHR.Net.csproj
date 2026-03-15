@@ -11,7 +11,7 @@
     <PackageId>MHR.Net</PackageId>
     <Version>1.0.0</Version>
     <Authors>mpathy</Authors>
-    <Description>C# port of Meta's MHR (Meta Human Rig) parametric body model for AI-based 3D body mesh generation. Provides 45 identity parameters for body shape, 204 pose parameters for articulation, and 72 expression parameters for facial animation.</Description>
+    <Description>C# port of Meta's MHR (Momentum Human Rig) parametric body model for AI-based 3D body mesh generation. Provides 45 identity parameters for body shape, 204 pose parameters for articulation, and 72 expression parameters for facial animation.</Description>
     <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
     <PackageProjectUrl>https://github.com/facebookresearch/MHR</PackageProjectUrl>
     <PackageReadmeFile>README.md</PackageReadmeFile>
