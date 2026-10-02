@@ -18,7 +18,7 @@ All files are saved to `sweep_output/` in the build directory:
 - `baseline_{angle}.png` - Baseline renders (4 images)
 - `p{NNN}_{variant}_{angle}.png` - Parameter variant renders (16 per parameter)
 - `p{NNN}_heatmap_{angle}.png` - Difference heatmaps (4 per parameter)
-- `sweep_metadata.json` - Index of all images with parameter info, variant values, and angles
+- `sweep_metadata.json` - Index of all images with parameter info, variant values, and angles, plus the body parts each parameter affects (`AffectedParts` with deformation/motion share, `Rigid`, `MaxDisplacementCm`; see MHR.Segment)
 
 The heatmap uses a black -> red -> yellow -> white color scale, computed using parallel `LockBits` pixel processing.
 

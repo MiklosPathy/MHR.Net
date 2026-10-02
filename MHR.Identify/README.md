@@ -8,7 +8,7 @@ Validates MHR parameter names by sending sweep images to local vision models (vi
 2. For each parameter, sends images to a vision model in 5 sequential API calls:
    - 4 per-angle requests (front, left, right, back) - each with 6 images: baseline + 4 variants + heatmap
    - 1 summary request (text only) that combines the 4 angle results into a final verdict
-3. The model evaluates whether the current parameter name matches the visible effect
+3. The model evaluates whether the current parameter name matches the visible effect. If the sweep metadata contains `AffectedParts` (from MHR.Sweep), the measured body parts (where the shape changes, what moves, or rigid motion) are included in the prompt text
 4. Results are saved incrementally to `identify_results.json`
 
 ## Features

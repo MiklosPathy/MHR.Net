@@ -33,6 +33,14 @@ class Program
     static MhrModel? _mhrModel;
     static MhrVertex[]? _currentMhrVertices;
 
+    // Body part segmentation (per-part index buffers, drawn with per-part colors)
+    static MhrSegmentation? _segmentation;
+    static bool _showSegments;
+    static ID3D12Resource?[]? _partIndexBuffers;
+    static IndexBufferView[]? _partIndexBufferViews;
+    static int[]? _partIndexCounts;
+    static ID3D12Resource[]? _partConstantBuffers;
+
     // Parameter counts (from central registry)
     const int IdentityParamCount = MhrParameters.IdentityCount;
     const int PoseParamCount = MhrParameters.PoseCount;
@@ -102,6 +110,16 @@ class Program
             Console.WriteLine($"Model loaded! Vertices: {_mhrModel.NumVertices}");
             Console.WriteLine($"Indices available: {_mhrModel.Indices != null} (count: {_mhrModel.Indices?.Length ?? 0})");
 
+            try
+            {
+                _segmentation = MhrSegmentation.Create(_mhrModel);
+                Console.WriteLine($"Segmentation: {_segmentation.Parts.Length} parts");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Segmentation unavailable: {ex.Message}");
+            }
+
             // Generate initial mesh
             GenerateBody();
         }
@@ -120,7 +138,7 @@ class Program
         string? currentTab = null;
         ParameterGroup? firstGroupPerTab = null;
 
-        foreach (var (category, groupName, names, startIndex) in MhrParameters.Groups)
+        foreach (var (category, groupName, indices) in MhrParameters.Groups)
         {
             // Add tab when category changes
             if (category != currentTab)
@@ -134,10 +152,10 @@ class Program
             var group = _paramPanel.AddGroup(category, groupName);
             firstGroupPerTab ??= group;
 
-            for (int i = 0; i < names.Length; i++)
+            foreach (var index in indices)
             {
-                var p = MhrParameters.All[startIndex + i];
-                group.AddSlider(names[i], startIndex + i, rangeMin: p.RangeMin, rangeMax: p.RangeMax);
+                var p = MhrParameters.All[index];
+                group.AddSlider(p.Name, index, rangeMin: p.RangeMin, rangeMax: p.RangeMax);
             }
         }
         firstGroupPerTab?.Expand();
@@ -171,6 +189,7 @@ class Program
                     _bodyVertexBuffer?.Dispose();
                     _bodyIndexBuffer?.Dispose();
                     _bodyConstantBuffer?.Dispose();
+                    DisposePartBuffers();
                 },
                 onAfterReinit: () =>
                 {
@@ -182,6 +201,18 @@ class Program
                 });
         });
         form.Controls.Add(deviceComboBox);
+
+        // Body part segmentation toggle
+        var segmentsCheckBox = new CheckBox
+        {
+            Text = "Show body part segments",
+            Location = new System.Drawing.Point(form.ClientSize.Width - 300, 60),
+            AutoSize = true,
+            Enabled = _segmentation != null,
+            Anchor = AnchorStyles.Top | AnchorStyles.Right
+        };
+        segmentsCheckBox.CheckedChanged += (s, e) => _showSegments = segmentsCheckBox.Checked;
+        form.Controls.Add(segmentsCheckBox);
 
         // === Event handlers ===
 
@@ -287,6 +318,7 @@ class Program
         _bodyVertexBuffer?.Dispose();
         _bodyIndexBuffer?.Dispose();
         _bodyConstantBuffer?.Dispose();
+        DisposePartBuffers();
         _mhrModel?.Dispose();
         _renderer.Dispose();
     }
@@ -369,6 +401,44 @@ class Program
         _bodyIndexBuffer = ib;
         _bodyIndexBufferView = ibv;
         _bodyIndexCount = indices.Length;
+
+        // Per-part index buffers depend only on the topology, so build them once
+        if (_segmentation != null && _partIndexBuffers == null && _segmentation.NumVertices == mhrVertices.Length)
+            CreatePartBuffers(indices);
+    }
+
+    static void CreatePartBuffers(uint[] indices)
+    {
+        var partIndices = _segmentation!.SplitIndicesByPart(indices);
+        int partCount = partIndices.Length;
+
+        _partIndexBuffers = new ID3D12Resource?[partCount];
+        _partIndexBufferViews = new IndexBufferView[partCount];
+        _partIndexCounts = new int[partCount];
+        _partConstantBuffers = new ID3D12Resource[partCount];
+
+        for (int p = 0; p < partCount; p++)
+        {
+            _partConstantBuffers[p] = _renderer!.CreateConstantBuffer();
+            _partIndexCounts[p] = partIndices[p].Length;
+            if (partIndices[p].Length == 0) continue;
+
+            var (ib, ibv) = _renderer.CreateIndexBuffer(partIndices[p]);
+            _partIndexBuffers[p] = ib;
+            _partIndexBufferViews[p] = ibv;
+        }
+    }
+
+    static void DisposePartBuffers()
+    {
+        if (_partIndexBuffers != null)
+            foreach (var ib in _partIndexBuffers) ib?.Dispose();
+        if (_partConstantBuffers != null)
+            foreach (var cb in _partConstantBuffers) cb.Dispose();
+        _partIndexBuffers = null;
+        _partIndexBufferViews = null;
+        _partIndexCounts = null;
+        _partConstantBuffers = null;
     }
 
     static void Render()
@@ -391,14 +461,33 @@ class Program
                         Matrix4x4.CreateRotationY(_rotationY) *
                         Matrix4x4.CreateTranslation(0, pivotY, 0);    // Move back
 
-        // Update and draw body (uses default front lighting from D3DShared)
-        _renderer.UpdateConstantBuffer(_bodyConstantBuffer!, bodyWorld,
-            new Vector4(0.85f, 0.72f, 0.62f, 1.0f)); // Skin color
+        _renderer.CommandList!.IASetVertexBuffers(0, _bodyVertexBufferView);
 
-        _renderer.CommandList!.SetGraphicsRootConstantBufferView(0, _bodyConstantBuffer!.GPUVirtualAddress);
-        _renderer.CommandList.IASetVertexBuffers(0, _bodyVertexBufferView);
-        _renderer.CommandList.IASetIndexBuffer(_bodyIndexBufferView);
-        _renderer.CommandList.DrawIndexedInstanced((uint)_bodyIndexCount, 1, 0, 0, 0);
+        if (_showSegments && _partIndexBuffers != null)
+        {
+            // Draw each body part with its own color (one constant buffer per part)
+            for (int p = 0; p < _partIndexBuffers.Length; p++)
+            {
+                if (_partIndexCounts![p] == 0) continue;
+
+                var c = MhrSegmentation.PartColors[p % MhrSegmentation.PartColors.Length];
+                _renderer.UpdateConstantBuffer(_partConstantBuffers![p], bodyWorld, new Vector4(c, 1.0f));
+
+                _renderer.CommandList.SetGraphicsRootConstantBufferView(0, _partConstantBuffers[p].GPUVirtualAddress);
+                _renderer.CommandList.IASetIndexBuffer(_partIndexBufferViews![p]);
+                _renderer.CommandList.DrawIndexedInstanced((uint)_partIndexCounts[p], 1, 0, 0, 0);
+            }
+        }
+        else
+        {
+            // Update and draw body (uses default front lighting from D3DShared)
+            _renderer.UpdateConstantBuffer(_bodyConstantBuffer!, bodyWorld,
+                new Vector4(0.85f, 0.72f, 0.62f, 1.0f)); // Skin color
+
+            _renderer.CommandList.SetGraphicsRootConstantBufferView(0, _bodyConstantBuffer!.GPUVirtualAddress);
+            _renderer.CommandList.IASetIndexBuffer(_bodyIndexBufferView);
+            _renderer.CommandList.DrawIndexedInstanced((uint)_bodyIndexCount, 1, 0, 0, 0);
+        }
 
         // End frame
         _renderer.EndFrame();

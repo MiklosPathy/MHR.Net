@@ -455,7 +455,7 @@ class Program
             content.Add(new
             {
                 type = "text",
-                text = $"Viewpoint: {angle}. Parameter #{param.ParamIndex} in '{param.Category}' category. Current name: \"{param.CurrentName}\". Does this name accurately describe the visible effect?"
+                text = $"Viewpoint: {angle}. Parameter #{param.ParamIndex} in '{param.Category}' category. Current name: \"{param.CurrentName}\".{DescribeAffectedParts(param)} Does this name accurately describe the visible effect?"
             });
 
             var angleResponse = await CallApi(http, serverUrl, model.AnglePrompt, content);
@@ -481,7 +481,7 @@ class Program
         summaryContent.Add(new
         {
             type = "text",
-            text = $"Parameter #{param.ParamIndex}, category: '{param.Category}', current name: \"{param.CurrentName}\". Combine the above viewpoint analyses into a single final verdict."
+            text = $"Parameter #{param.ParamIndex}, category: '{param.Category}', current name: \"{param.CurrentName}\".{DescribeAffectedParts(param)} Combine the above viewpoint analyses into a single final verdict."
         });
 
         var summaryResponse = await CallApi(http, serverUrl, model.SummaryPrompt, summaryContent);
@@ -580,6 +580,25 @@ class Program
         return result;
     }
 
+    /// <summary>
+    /// Geometry-based body part measurement from MHR.Sweep (empty for older sweep output).
+    /// Left/right are the character's left/right.
+    /// </summary>
+    static string DescribeAffectedParts(ParamSweepEntry param)
+    {
+        if (param.AffectedParts.Count == 0) return "";
+
+        static string Format(IEnumerable<PartEffectEntry> parts, Func<PartEffectEntry, float> share) =>
+            string.Join(", ", parts.Where(p => share(p) >= 0.05f).OrderByDescending(share)
+                .Select(p => $"{p.DisplayName} {share(p) * 100:F0}%"));
+
+        if (param.Rigid)
+            return $" Mesh measurement: the whole body moves rigidly without changing shape (max displacement {param.MaxDisplacementCm:F1} cm).";
+
+        return $" Mesh measurement (character's left/right): shape changes on {Format(param.AffectedParts, p => p.DeformationShare)}; " +
+               $"moving parts: {Format(param.AffectedParts, p => p.MotionShare)} (max displacement {param.MaxDisplacementCm:F1} cm).";
+    }
+
     static string? FindSweepDir()
     {
         // Look for sweep_output relative to current dir or in MHR.Sweep build output
@@ -609,6 +628,17 @@ record ParamSweepEntry
     [JsonPropertyName("CurrentName")] public string CurrentName { get; set; } = "";
     [JsonPropertyName("Category")] public string Category { get; set; } = "";
     [JsonPropertyName("Images")] public List<ImageEntry> Images { get; set; } = [];
+    [JsonPropertyName("Rigid")] public bool Rigid { get; set; }
+    [JsonPropertyName("MaxDisplacementCm")] public float MaxDisplacementCm { get; set; }
+    [JsonPropertyName("AffectedParts")] public List<PartEffectEntry> AffectedParts { get; set; } = [];
+}
+
+record PartEffectEntry
+{
+    [JsonPropertyName("Part")] public string Part { get; set; } = "";
+    [JsonPropertyName("DisplayName")] public string DisplayName { get; set; } = "";
+    [JsonPropertyName("DeformationShare")] public float DeformationShare { get; set; }
+    [JsonPropertyName("MotionShare")] public float MotionShare { get; set; }
 }
 
 record ImageEntry

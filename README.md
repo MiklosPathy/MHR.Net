@@ -13,6 +13,7 @@ This solution provides tools for interactive exploration, parameter range analys
 | [MHR.Range](MHR.Range/) | Determines safe parameter ranges via triangle inversion detection |
 | [MHR.Sweep](MHR.Sweep/) | Renders each parameter's effect from multiple angles, generates difference heatmaps |
 | [MHR.Identify](MHR.Identify/) | Validates parameter names using local vision models (llama.cpp) |
+| [MHR.Segment](MHR.Segment/) | 20-part body segmentation and per-parameter body part effect analysis |
 
 See each project's README.md for detailed documentation.
 
@@ -22,10 +23,12 @@ See each project's README.md for detailed documentation.
 MHR.Range  -->  MhrParameters.cs (ranges)
                       |
                       v
-               MHR.Sweep (images)
+               MHR.Sweep (images + affected body parts)
                       |
                       v
               MHR.Identify (name validation)
+
+MHR.Segment  -->  param_segments.csv (affected body parts, headless)
 ```
 
 ---

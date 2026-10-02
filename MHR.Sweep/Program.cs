@@ -31,6 +31,7 @@ class Program
 
     static MhrModel? _mhrModel;
     static MhrVertex[]? _currentMhrVertices;
+    static MhrSegmentation? _segmentation;
 
     const int IdentityParamCount = MhrParameters.IdentityCount;
     const int PoseParamCount = MhrParameters.PoseCount;
@@ -94,6 +95,8 @@ class Program
                 assetFolder: assetFolder);
             Console.WriteLine($"Model loaded. Vertices: {_mhrModel.NumVertices}");
 
+            _segmentation = MhrSegmentation.Create(_mhrModel);
+
             GenerateBody();
         }
         catch (Exception ex)
@@ -128,6 +131,7 @@ class Program
             baselineImages[angleName] = CaptureClientArea(form);
             baselineImages[angleName].Save(Path.Combine(outputDir, $"baseline_{angleName}.png"), ImageFormat.Png);
         }
+        var baselinePositions = CurrentPositionsCm();
 
         for (int paramIdx = SweepStart; paramIdx < SweepStart + SweepCount; paramIdx++)
         {
@@ -145,6 +149,7 @@ class Program
 
             // Capture variants: half and full in both directions
             var variantImages = new Dictionary<(string variant, string angle), Bitmap>();
+            var variantPositions = new List<float[]>();
 
             var paramDef = MhrParameters.All[paramIdx];
             Console.WriteLine($"  Range: {paramDef.RangeMin:F4} .. {paramDef.RangeMax:F4}");
@@ -162,6 +167,7 @@ class Program
                 ResetAllParams();
                 SetParam(paramIdx, value);
                 GenerateBody();
+                variantPositions.Add(CurrentPositionsCm());
 
                 foreach (var (angleName, rotY, rotX) in CameraAngles)
                 {
@@ -202,6 +208,21 @@ class Program
                     Value = 0,
                     Angle = angleName
                 });
+            }
+
+            // Body parts affected by this parameter (geometry-based, see MhrSegmentation)
+            if (_segmentation != null)
+            {
+                var effect = _segmentation.MeasureEffect(baselinePositions, variantPositions);
+                entry.Rigid = effect.Rigid;
+                entry.MaxDisplacementCm = effect.MaxDisplacement;
+                entry.AffectedParts = effect.Parts.Select(e => new PartEffectEntry
+                {
+                    Part = e.Name,
+                    DisplayName = _segmentation.DisplayName(e.Part),
+                    DeformationShare = e.DeformationShare,
+                    MotionShare = e.MotionShare
+                }).ToList();
             }
 
             // Dispose variant bitmaps
@@ -391,6 +412,20 @@ class Program
         }
     }
 
+    /// <summary>Current mesh positions as a flat xyz array in centimeters (model units).</summary>
+    static float[] CurrentPositionsCm()
+    {
+        var verts = _currentMhrVertices!;
+        var positions = new float[verts.Length * 3];
+        for (int i = 0; i < verts.Length; i++)
+        {
+            positions[i * 3] = verts[i].Position.X * 100f;
+            positions[i * 3 + 1] = verts[i].Position.Y * 100f;
+            positions[i * 3 + 2] = verts[i].Position.Z * 100f;
+        }
+        return positions;
+    }
+
     static void CreateBuffers(MhrVertex[] mhrVertices, uint[] indices)
     {
         _bodyVertexBuffer?.Dispose();
@@ -447,6 +482,17 @@ record ParamSweepEntry
     public string CurrentName { get; set; } = "";
     public string Category { get; set; } = "";
     public List<ImageEntry> Images { get; set; } = [];
+    public bool Rigid { get; set; }
+    public float MaxDisplacementCm { get; set; }
+    public List<PartEffectEntry> AffectedParts { get; set; } = [];
+}
+
+record PartEffectEntry
+{
+    public string Part { get; set; } = "";
+    public string DisplayName { get; set; } = "";
+    public float DeformationShare { get; set; }
+    public float MotionShare { get; set; }
 }
 
 record ImageEntry

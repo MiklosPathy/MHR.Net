@@ -59,6 +59,7 @@ public class MhrModel : IDisposable
     /// <summary>
     /// Number of identity blendshape parameters (body shape).
     /// First 20 affect body, next 20 affect head, last 5 affect hands.
+    /// Zero-mean, unit variance; typical range -3 to +3.
     /// </summary>
     public int NumIdentityParams => MhrAssets.NumIdentityBlendshapes;
 
@@ -69,6 +70,8 @@ public class MhrModel : IDisposable
 
     /// <summary>
     /// Number of face expression blendshape parameters.
+    /// Artist-sculpted, sparse semantic (FACS-based) blendshape weights; typical range -1 to +1.
+    /// Names are in <see cref="MhrParameters"/> (Expression category).
     /// </summary>
     public int NumExpressionParams => MhrAssets.NumFaceExpressionBlendshapes;
 
@@ -135,13 +138,18 @@ public class MhrModel : IDisposable
     /// <param name="modelParams">Model parameters [batch, 204] or [204]</param>
     /// <param name="expressionCoeffs">Expression parameters [batch, 72] or [72], optional</param>
     /// <param name="applyCorrectivees">Whether to apply pose correctives</param>
+    /// <param name="trackGradients">
+    /// When true, the call runs with autograd enabled so outputs track gradients for inputs that
+    /// have requires_grad set (e.g. for fitting/optimization). When false (default), runs under no_grad.
+    /// </param>
     public MhrOutput Forward(
         Tensor identityCoeffs,
         Tensor modelParams,
         Tensor? expressionCoeffs = null,
-        bool applyCorrectivees = true)
+        bool applyCorrectivees = true,
+        bool trackGradients = false)
     {
-        using var _ = torch.no_grad();
+        using var _ = trackGradients ? null : torch.no_grad();
 
         // Ensure batch dimension
         if (identityCoeffs.dim() == 1)
@@ -237,6 +245,28 @@ public class MhrModel : IDisposable
         var identity = torch.zeros(1, NumIdentityParams);
         var modelParams = torch.zeros(1, NumModelParams);
         return Forward(identity, modelParams);
+    }
+
+    /// <summary>
+    /// Get the official parameter limits stored in the TorchScript model.
+    /// Returns a [249, 2] (min, max) tensor: rows 0-203 are the model (pose) parameters,
+    /// rows 204-248 the identity coefficients. Unlimited parameters report [-10, 10].
+    /// The same values are mirrored in <see cref="MhrParameters"/> as LimitMin/LimitMax.
+    /// </summary>
+    public Tensor GetParameterLimits()
+    {
+        return ((Tensor)_model.invoke("get_parameter_limits")!).cpu();
+    }
+
+    /// <summary>
+    /// Get the linear blend skinning weights of the (LOD1) mesh from the TorchScript model.
+    /// Both tensors have shape [numVertices, maxInfluences]: Index holds joint indices
+    /// (see <see cref="MhrSegmentation.JointNames"/>), Weight the matching weights.
+    /// </summary>
+    public (Tensor Index, Tensor Weight) GetSkinningWeights()
+    {
+        var (index, weight) = _model.invoke<(Tensor, Tensor)>("get_lbsw");
+        return (index.cpu(), weight.cpu());
     }
 
     /// <summary>
