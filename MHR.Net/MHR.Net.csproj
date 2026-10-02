@@ -22,8 +22,8 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- TorchSharp with CUDA support for GPU acceleration -->
-    <PackageReference Include="TorchSharp-cuda-windows" Version="0.103.0" />
+    <!-- TorchSharp with CUDA 12.8 support (required for Blackwell / sm_120 GPUs) -->
+    <PackageReference Include="TorchSharp-cuda-windows" Version="0.107.0" />
   </ItemGroup>
 
   <ItemGroup>
